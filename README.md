@@ -79,6 +79,11 @@ python create_map_poster.py --city <city> --country <country> [options]
 | **OPTIONAL:** `--all-themes` | | Generate posters for all available themes | |
 | **OPTIONAL:** `--width` | `-W` | Image width in inches | 12 (max: 20) |
 | **OPTIONAL:** `--height` | `-H` | Image height in inches | 16 (max: 20) |
+| **OPTIONAL:** `--marker-lat` | | Latitude for map marker | |
+| **OPTIONAL:** `--marker-lon` | | Longitude for map marker | |
+| **OPTIONAL:** `--marker-shape` | | Marker shape: `heart` or `kiss` | heart |
+| **OPTIONAL:** `--marker-color` | | Marker fill color (hex) | #E74C3C |
+| **OPTIONAL:** `--marker-size` | | Marker size in meters | 300 |
 
 ### Multilingual Support - i18n
 
@@ -151,6 +156,21 @@ python create_map_poster.py -c "Beijing" -C "China" -dc "北京" -dC "中国" --
 
 # Khmer
 python create_map_poster.py -c "Phnom Penh" -C "Cambodia" -dc "ភ្នំពេញ" -dC "កម្ពុជា" --font-family "Noto Sans Khmer"
+```
+
+#### Marker Examples
+
+Place a heart or kiss (lips) marker on a specific location:
+
+```bash
+# Heart marker at a specific location
+python create_map_poster.py -c "Budapest" -C "Hungary" -t copper_patina --marker-lat 47.4621 --marker-lon 19.0592
+
+# Kiss (lips) marker
+python create_map_poster.py -c "Paris" -C "France" -t pastel_dream --marker-lat 48.8584 --marker-lon 2.2945 --marker-shape kiss
+
+# Custom marker color and size
+python create_map_poster.py -c "Rome" -C "Italy" -t warm_beige --marker-lat 41.8902 --marker-lon 12.4922 --marker-shape heart --marker-color "#FF69B4" --marker-size 500
 ```
 
 #### Advanced Examples
@@ -305,6 +325,7 @@ Quick reference for contributors who want to extend or modify the script.
 | `create_poster()` | Main rendering pipeline | Adding new map layers |
 | `get_edge_colors_by_type()` | Road color by OSM highway tag | Changing road styling |
 | `get_edge_widths_by_type()` | Road width by importance | Adjusting line weights |
+| `draw_marker()` | Dispatch heart/kiss marker | Adding new marker shapes |
 | `create_gradient_fade()` | Top/bottom fade effect | Modifying gradient overlay |
 | `load_theme()` | JSON theme → dict | Adding new theme properties |
 | `is_latin_script()` | Detects script for typography | Supporting new scripts |
@@ -315,6 +336,7 @@ Quick reference for contributors who want to extend or modify the script.
 ```text
 z=11  Text labels (city, country, coords)
 z=10  Gradient fades (top & bottom)
+z=9   Marker (heart or kiss shape)
 z=3   Roads (via ox.plot_graph)
 z=2   Parks (green polygons)
 z=1   Water (blue polygons)
