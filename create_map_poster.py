@@ -316,6 +316,102 @@ def get_edge_widths_by_type(g):
     return edge_widths
 
 
+def draw_heart_marker(ax, center_x, center_y, size=300, color='#E74C3C', zorder=9):
+    """
+    Draw a heart shape on the map at the given projected coordinates.
+
+    Uses the parametric heart curve:
+        x = 16 * sin(t)^3
+        y = 13 * cos(t) - 5 * cos(2t) - 2 * cos(3t) - cos(4t)
+
+    Args:
+        ax: Matplotlib axes
+        center_x: X coordinate in projected CRS
+        center_y: Y coordinate in projected CRS
+        size: Size of the heart in meters (default: 300)
+        color: Fill color (default: '#E74C3C' red)
+        zorder: Drawing order (default: 9)
+    """
+    from matplotlib.path import Path as MplPath
+    from matplotlib.patches import PathPatch
+
+    t = np.linspace(0, 2 * np.pi, 200)
+    # Parametric heart curve (normalized to roughly [-16, 16] x [-17, 15])
+    hx = 16 * np.sin(t) ** 3
+    hy = 13 * np.cos(t) - 5 * np.cos(2 * t) - 2 * np.cos(3 * t) - np.cos(4 * t)
+
+    # Scale to requested size in meters (raw curve spans ~32 units wide)
+    scale = size / 32.0
+    hx = hx * scale + center_x
+    hy = hy * scale + center_y
+
+    vertices = list(zip(hx, hy))
+    vertices.append(vertices[0])  # close the path
+    codes = [MplPath.MOVETO] + [MplPath.LINETO] * (len(vertices) - 2) + [MplPath.CLOSEPOLY]
+
+    path = MplPath(vertices, codes)
+    patch = PathPatch(path, facecolor=color, edgecolor='none', zorder=zorder)
+    ax.add_patch(patch)
+
+
+def draw_kiss_marker(ax, center_x, center_y, size=300, color='#E74C3C', zorder=9):
+    """
+    Draw a stylized lips/kiss shape on the map at the given projected coordinates.
+
+    Uses two parametric curves: an upper lip with cupid's bow and a fuller lower lip.
+
+    Args:
+        ax: Matplotlib axes
+        center_x: X coordinate in projected CRS
+        center_y: Y coordinate in projected CRS
+        size: Size of the lips in meters (default: 300)
+        color: Fill color (default: '#E74C3C' red)
+        zorder: Drawing order (default: 9)
+    """
+    from matplotlib.path import Path as MplPath
+    from matplotlib.patches import PathPatch
+
+    t = np.linspace(0, np.pi, 100)
+
+    # Upper lip with cupid's bow: two humps peaking near t=pi/4 and 3pi/4,
+    # dipping at t=pi/2 (center) thanks to the -sin^3 term
+    upper_x = 16 * np.cos(t)
+    upper_y = 10 * np.sin(t) - 7 * np.sin(t) ** 3
+
+    # Lower lip: fuller curve downward
+    t_lower = np.linspace(np.pi, 0, 100)
+    lower_x = 16 * np.cos(t_lower)
+    lower_y = -10 * np.sin(t_lower)
+
+    # Combine into a closed shape: upper lip left-to-right, then lower lip right-to-left
+    lx = np.concatenate([upper_x, lower_x])
+    ly = np.concatenate([upper_y, lower_y])
+
+    # Center vertically so the marker sits on the target point
+    ly -= (ly.max() + ly.min()) / 2
+
+    # Scale to requested size (raw curve spans ~32 units wide)
+    scale = size / 32.0
+    lx = lx * scale + center_x
+    ly = ly * scale + center_y
+
+    vertices = list(zip(lx, ly))
+    vertices.append(vertices[0])
+    codes = [MplPath.MOVETO] + [MplPath.LINETO] * (len(vertices) - 2) + [MplPath.CLOSEPOLY]
+
+    path = MplPath(vertices, codes)
+    patch = PathPatch(path, facecolor=color, edgecolor='none', zorder=zorder)
+    ax.add_patch(patch)
+
+
+def draw_marker(ax, center_x, center_y, shape='heart', size=300, color='#E74C3C', zorder=9):
+    """Dispatch to the appropriate marker drawing function based on shape."""
+    if shape == 'kiss':
+        draw_kiss_marker(ax, center_x, center_y, size=size, color=color, zorder=zorder)
+    else:
+        draw_heart_marker(ax, center_x, center_y, size=size, color=color, zorder=zorder)
+
+
 def get_coordinates(city, country):
     """
     Fetches coordinates for a given city and country using geopy.
@@ -493,6 +589,11 @@ def create_poster(
     display_city=None,
     display_country=None,
     fonts=None,
+    marker_lat=None,
+    marker_lon=None,
+    marker_color='#E74C3C',
+    marker_size=300,
+    marker_shape='heart',
 ):
     """
     Generate a complete map poster with roads, water, parks, and typography.
@@ -610,6 +711,16 @@ def create_poster(
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlim(crop_xlim)
     ax.set_ylim(crop_ylim)
+
+    # Layer 2.5: Heart marker (if specified)
+    if marker_lat is not None and marker_lon is not None:
+        marker_proj = ox.projection.project_geometry(
+            Point(marker_lon, marker_lat),
+            crs="EPSG:4326",
+            to_crs=g_proj.graph["crs"],
+        )[0]
+        draw_marker(ax, marker_proj.x, marker_proj.y, shape=marker_shape, size=marker_size, color=marker_color)
+        print(f"✓ {marker_shape.capitalize()} marker placed at ({marker_lat}, {marker_lon})")
 
     # Layer 3: Gradients (Top and Bottom)
     create_gradient_fade(ax, THEME['gradient_color'], location='bottom', zorder=10)
@@ -955,6 +1066,37 @@ Examples:
         choices=["png", "svg", "pdf"],
         help="Output format for the poster (default: png)",
     )
+    parser.add_argument(
+        "--marker-lat",
+        type=float,
+        default=None,
+        help="Latitude for heart marker",
+    )
+    parser.add_argument(
+        "--marker-lon",
+        type=float,
+        default=None,
+        help="Longitude for heart marker",
+    )
+    parser.add_argument(
+        "--marker-color",
+        type=str,
+        default="#E74C3C",
+        help="Heart marker color (default: #E74C3C)",
+    )
+    parser.add_argument(
+        "--marker-size",
+        type=float,
+        default=300,
+        help="Marker size in meters (default: 300)",
+    )
+    parser.add_argument(
+        "--marker-shape",
+        type=str,
+        choices=["heart", "kiss"],
+        default="heart",
+        help="Marker shape: heart or kiss (default: heart)",
+    )
 
     args = parser.parse_args()
 
@@ -1037,6 +1179,11 @@ Examples:
                 display_city=args.display_city,
                 display_country=args.display_country,
                 fonts=custom_fonts,
+                marker_lat=args.marker_lat,
+                marker_lon=args.marker_lon,
+                marker_color=args.marker_color,
+                marker_size=args.marker_size,
+                marker_shape=args.marker_shape,
             )
 
         print("\n" + "=" * 50)
